@@ -1,0 +1,519 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>График смен</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4CAF50">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      background: #f2f2f2;
+    }
+
+    header {
+      background: #4caf50;
+      color: #fff;
+      padding: 16px;
+      text-align: center;
+    }
+
+    main {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+
+    .card {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Форма */
+    #shiftForm {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    #shiftForm label {
+      display: flex;
+      flex-direction: column;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    #shiftForm input, #shiftForm select {
+      margin-top: 4px;
+      padding: 8px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-width: 120px;
+    }
+    #shiftForm button {
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      font-size: 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #shiftForm button:hover {
+      background: #45a049;
+    }
+
+    /* Таблица с прокруткой (если не влезает) */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table {
+      min-width: 600px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    thead {
+      background: #ddd;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid #ccc;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    /* Если отмечено, что смена отработана */
+    .done-row td {
+      text-decoration: line-through;
+      color: #999;
+    }
+
+    /* Кнопки */
+    .btn {
+      padding: 6px 12px;
+      font-size: 0.9rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .btn.done {
+      background: #ffc107; /* Жёлтая кнопка */
+      color: #000;
+    }
+    .btn.edit {
+      background: #2196f3;
+      color: #fff;
+    }
+    .btn.delete {
+      background: #f44336;
+      color: #fff;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    /* Модальное окно */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: none; 
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      max-width: 400px;
+      width: 100%;
+      position: relative;
+    }
+    .modal h2 {
+      margin-top: 0;
+    }
+    .modal form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .close-modal {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: #333;
+    }
+
+    /* Адаптив */
+    @media (max-width: 480px) {
+      #shiftForm {
+        flex-direction: column;
+      }
+      #shiftForm label,
+      #shiftForm input,
+      #shiftForm select,
+      #shiftForm button {
+        width: 100%;
+      }
+      table {
+        min-width: 500px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>График смен</h1>
+  </header>
+  <main>
+    <!-- Форма добавления -->
+    <div class="card">
+      <form id="shiftForm">
+        <label>
+          Имя:
+          <input type="text" id="name" required />
+        </label>
+        <label>
+          Дата:
+          <input type="date" id="date" required />
+        </label>
+        <label>
+          Начало (время):
+          <input type="time" id="startTime" required />
+        </label>
+        <label>
+          Тип смены:
+          <select id="shiftType">
+            <option value="day">День (12 ч.)</option>
+            <option value="night">Ночь (12+8 ч.)</option>
+          </select>
+        </label>
+        <!-- Напоминание 30 мин. по умолчанию -->
+        <label>
+          Напоминание (мин. до начала):
+          <input type="number" id="remindBefore" value="30" min="0" />
+        </label>
+
+        <button type="submit">Добавить смену</button>
+      </form>
+    </div>
+
+    <!-- Таблица смен -->
+    <div class="card">
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Имя</th>
+              <th>Дата</th>
+              <th>Начало</th>
+              <th>Часов</th>
+              <th>Напоминание</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="shiftsBody">
+            <!-- динамическое наполнение -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Блок статистики -->
+    <div class="card">
+      <p>Смен в этом месяце: <span id="statsCount">0</span></p>
+    </div>
+  </main>
+
+  <!-- Модальное окно для редактирования -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="editModal">
+      <button class="close-modal" id="closeModalBtn">&times;</button>
+      <h2>Редактировать смену</h2>
+      <form id="editForm">
+        <label>
+          Имя:
+          <input type="text" id="editName" required />
+        </label>
+        <label>
+          Дата:
+          <input type="date" id="editDate" required />
+        </label>
+        <label>
+          Начало (время):
+          <input type="time" id="editStartTime" required />
+        </label>
+        <label>
+          Тип смены:
+          <select id="editShiftType">
+            <option value="day">День (12 ч.)</option>
+            <option value="night">Ночь (12+8 ч.)</option>
+          </select>
+        </label>
+        <label>
+          Напоминание (мин. до начала):
+          <input type="number" id="editRemindBefore" value="30" min="0" />
+        </label>
+        <button type="submit">Сохранить</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let shifts = [];
+    let currentEditId = null;
+
+    const shiftsBody = document.getElementById('shiftsBody');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const editModal = document.getElementById('editModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    // Поля формы редактирования
+    const editName = document.getElementById('editName');
+    const editDate = document.getElementById('editDate');
+    const editStartTime = document.getElementById('editStartTime');
+    const editShiftType = document.getElementById('editShiftType');
+    const editRemindBefore = document.getElementById('editRemindBefore');
+
+    // При загрузке страницы
+    document.addEventListener('DOMContentLoaded', () => {
+      loadShifts();
+      renderShiftsTable();
+    });
+
+    // Считать/записать из localStorage
+    function saveShiftsToLocalStorage() {
+      localStorage.setItem('shifts', JSON.stringify(shifts));
+    }
+    function loadShifts() {
+      const shiftsJSON = localStorage.getItem('shifts');
+      if (shiftsJSON) {
+        shifts = JSON.parse(shiftsJSON);
+      } else {
+        shifts = [];
+      }
+    }
+
+    // Подсчитать часы: день = 12, ночь = 20
+    function computeHours(shiftType) {
+      if (shiftType === 'night') {
+        return 20;
+      }
+      return 12; // по умолчанию день
+    }
+
+    // Форматирование даты: из "YYYY-MM-DD" → "DD.MM.YYYY"
+    function formatDate(isoDateString) {
+      // isoDateString типа "2025-02-12"
+      const [year, month, day] = isoDateString.split('-');
+      return `${day}.${month}.${year}`;
+    }
+
+    // Рендер таблицы
+    function renderShiftsTable() {
+      shiftsBody.innerHTML = '';
+
+      shifts.forEach(shift => {
+        const tr = document.createElement('tr');
+        if (shift.isDone) {
+          tr.classList.add('done-row');
+        }
+
+        // Считаем часы по типу
+        const hours = computeHours(shift.shiftType);
+        // Форматируем дату
+        const displayDate = formatDate(shift.date);
+
+        tr.innerHTML = `
+          <td>${shift.name}</td>
+          <td>${displayDate}</td>
+          <td>${shift.startTime}</td>
+          <td>${hours}</td>
+          <td>${shift.remindBefore || 0} мин.</td>
+          <td>
+            <button class="btn done" data-id="${shift.id}">✔</button>
+            <button class="btn edit" data-id="${shift.id}">Ред.</button>
+            <button class="btn delete" data-id="${shift.id}">Уд.</button>
+          </td>
+        `;
+
+        shiftsBody.appendChild(tr);
+      });
+
+      // Назначаем обработчики
+      document.querySelectorAll('.btn.done').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const id = parseInt(e.target.dataset.id, 10);
+          toggleDone(id);
+        });
+      });
+      document.querySelectorAll('.btn.edit').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const id = parseInt(e.target.dataset.id, 10);
+          openEditModal(id);
+        });
+      });
+      document.querySelectorAll('.btn.delete').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const id = parseInt(e.target.dataset.id, 10);
+          deleteShift(id);
+        });
+      });
+
+      updateStats();
+    }
+
+    // Подсчитать, сколько смен в текущем месяце
+    function updateStats() {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth(); // 0..11
+
+      let countCurrentMonth = 0;
+      shifts.forEach(shift => {
+        const d = new Date(shift.date); // shift.date формата YYYY-MM-DD
+        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+          countCurrentMonth++;
+        }
+      });
+
+      document.getElementById('statsCount').textContent = countCurrentMonth;
+    }
+
+    // Обработка формы добавления
+    const shiftForm = document.getElementById('shiftForm');
+    shiftForm.addEventListener('submit', e => {
+      e.preventDefault();
+
+      const name = document.getElementById('name').value.trim();
+      const date = document.getElementById('date').value;
+      const startTime = document.getElementById('startTime').value;
+      const shiftType = document.getElementById('shiftType').value;
+      const remindBefore = parseInt(document.getElementById('remindBefore').value, 10) || 0;
+
+      if (!name || !date || !startTime || !shiftType) {
+        alert('Заполните поля (имя, дата, время, тип смены)');
+        return;
+      }
+
+      const newShift = {
+        id: Date.now(),
+        name,
+        date,       // формат "YYYY-MM-DD"
+        startTime,  // "HH:MM"
+        shiftType,  // "day" или "night"
+        remindBefore,
+        isDone: false
+      };
+
+      shifts.push(newShift);
+      saveShiftsToLocalStorage();
+      renderShiftsTable();
+
+      // Очистить форму
+      shiftForm.reset();
+
+      // Если нужен локальный таймер/уведомление, можно дописать scheduleNotification(newShift).
+    });
+
+    // Удаление
+    function deleteShift(id) {
+      shifts = shifts.filter(s => s.id !== id);
+      saveShiftsToLocalStorage();
+      renderShiftsTable();
+    }
+
+    // Отметить «отработано»
+    function toggleDone(id) {
+      const shift = shifts.find(s => s.id === id);
+      if (!shift) return;
+      shift.isDone = !shift.isDone; // переключение
+      saveShiftsToLocalStorage();
+      renderShiftsTable();
+    }
+
+    // Открыть модальное окно редактирования
+    function openEditModal(id) {
+      currentEditId = id;
+      const shift = shifts.find(s => s.id === id);
+      if (!shift) return;
+
+      editName.value = shift.name;
+      editDate.value = shift.date;
+      editStartTime.value = shift.startTime;
+      editShiftType.value = shift.shiftType;
+      editRemindBefore.value = shift.remindBefore || 0;
+
+      modalOverlay.style.display = 'flex';
+    }
+
+    function closeModal() {
+      modalOverlay.style.display = 'none';
+    }
+
+    closeModalBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => {
+      if (e.target === modalOverlay) {
+        closeModal();
+      }
+    });
+
+    // Сохранить изменения
+    const editForm = document.getElementById('editForm');
+    editForm.addEventListener('submit', e => {
+      e.preventDefault();
+      if (!currentEditId) return;
+
+      const shiftIndex = shifts.findIndex(s => s.id === currentEditId);
+      if (shiftIndex === -1) return;
+
+      shifts[shiftIndex].name = editName.value.trim();
+      shifts[shiftIndex].date = editDate.value;
+      shifts[shiftIndex].startTime = editStartTime.value;
+      shifts[shiftIndex].shiftType = editShiftType.value;
+      shifts[shiftIndex].remindBefore = parseInt(editRemindBefore.value, 10) || 0;
+
+      saveShiftsToLocalStorage();
+      renderShiftsTable();
+      closeModal();
+
+      // Если нужно пересоздать уведомление – добавить scheduleNotification().
+    });
+  </script>
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('Service Worker зарегистрирован!'))
+    .catch(err => console.error('SW регистрация не удалась', err));
+}
+ </script>
+</body>
+</html>
